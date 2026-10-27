@@ -1,0 +1,34 @@
+LHDC Switch public distribution, v2.4.2
+Modified core and complete corresponding source: https://github.com/lldvm/LHDC-Switch
+See the repository SOURCE.md, docs/BUILDING.zh-CN.md and the source-with-submodules release archive.
+The original driver helper remains from upstream v2.0.1. Original upstream source notice follows.
+
+A2DP Windows Bridge (A2DPWB) 2.0.1 (x64)
+
+Source code
+-----------
+Repository: https://github.com/SeiyaFunaokaJP/A2DP-Windows-Bridge
+Commit:     3a094af733c830a2f4f5bd7418e6c7ba1db94749
+
+Pinned submodules (git submodule status: commit, path, description):
+ 5bc5cbdbeec33be1fdbd0d50e04c0f6deab99d2d extern/btstack (v1.8.1-6-g5bc5cbdbe)
+ d8e6b1a3aa606c450241632b64b703f21ea31ce3 extern/fdk-aac (v2.0.3-158-gd8e6b1a)
+ 3f9d1980fa9c57cdfb78792f9455a7dbac50edda extern/lhdcv5-enc (heads/main)
+ eeee1a3f5f8df1282e3a6d297085885fd886737b extern/libldac (android-15.0.0_r36-4-geeee1a3)
+ 2459ed4686eaef0a19dfa3f330a960813c5f60de extern/libopenaptx (0.2.0)
+ ddbe48383984d56acd9e1ab6a090c54ca6b735a6 extern/opus (v1.5.2)
+
+The complete corresponding source code of these programs and of every
+library statically linked into them - including the LGPL-2.1-or-later
+libopenaptx and the Fraunhofer FDK AAC codec - is available free of charge
+at the repository URL and commit above.
+It contains everything needed to rebuild and relink the programs (e.g. with
+a modified version of libopenaptx):
+
+    git clone --recursive https://github.com/SeiyaFunaokaJP/A2DP-Windows-Bridge.git
+    git checkout 3a094af733c830a2f4f5bd7418e6c7ba1db94749
+    git submodule update --init --recursive
+    pwsh installer/build-release.ps1
+
+See LICENSE, THIRD_PARTY_LICENSES.md and the licenses/ folder for the terms
+of each component; licenses/rust-crates.txt lists the Rust crates.

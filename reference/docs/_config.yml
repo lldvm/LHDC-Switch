@@ -1,0 +1,90 @@
+title: A2DP Windows Bridge
+description: Bluetooth A2DP audio streaming for Windows
+remote_theme: just-the-docs/just-the-docs
+
+url: https://seiyafunaokajp.github.io
+baseurl: /A2DP-Windows-Bridge
+
+aux_links:
+  GitHub: https://github.com/SeiyaFunaokaJP/A2DP-Windows-Bridge
+
+color_scheme: dark
+
+nav_sort: case_insensitive
+
+# Style the {: .note } / {: .warning } callouts used throughout the docs
+callouts:
+  note:
+    color: blue
+  warning:
+    color: red
+
+footer_content: >-
+  A2DP Windows Bridge (A2DPWB) source code is dual-licensed under <a href="https://github.com/SeiyaFunaokaJP/A2DP-Windows-Bridge/blob/main/LICENSE">Apache-2.0 or MIT</a>. The distributed programs include BTstack (in a2dpwb-core.exe) and may only be used for personal, non-commercial purposes (<a href="https://github.com/SeiyaFunaokaJP/A2DP-Windows-Bridge/blob/main/THIRD_PARTY_LICENSES.md">third-party licenses</a>).
+
+plugins:
+  - jekyll-remote-theme
+
+# Manual languages: English at the site root, every other language in a
+# folder named after its code. The header language menu, the sidebar filter
+# and the hreflang links all come from this list. A translated folder holds a
+# home page (has_children) whose children are the translated pages.
+languages:
+  - code: en
+    name: English
+  - code: ja
+    name: 日本語
+  - code: zh-CN
+    name: 简体中文
+  - code: zh-TW
+    name: 繁體中文
+  - code: ko
+    name: 한국어
+  - code: de
+    name: Deutsch
+  - code: fr
+    name: Français
+  - code: es
+    name: Español
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      lang: en
+  - scope:
+      path: "ja"
+    values:
+      lang: ja
+  - scope:
+      path: "zh-CN"
+    values:
+      lang: zh-CN
+  - scope:
+      path: "zh-TW"
+    values:
+      lang: zh-TW
+  - scope:
+      path: "ko"
+    values:
+      lang: ko
+  - scope:
+      path: "de"
+    values:
+      lang: de
+  - scope:
+      path: "fr"
+    values:
+      lang: fr
+  - scope:
+      path: "es"
+    values:
+      lang: es
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+
+# Render ```mermaid code blocks (architecture diagrams)
+mermaid:
+  version: "11.4.1"

@@ -1,0 +1,169 @@
+# A2DPWB: checks on every pull request and push, the emulator end-to-end
+# test on pushes to develop-v2.x and main, nightly and on demand.
+name: ci
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - "extern/**"
+      - "compat/**"
+      - "tools/emu/**"
+      - "tools/a2dp_decode/**"
+      - "tools/check_lang.py"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [develop-v2.x, main]
+    paths:
+      - "app/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - "extern/**"
+      - "compat/**"
+      - "tools/emu/**"
+      - "tools/a2dp_decode/**"
+      - "tools/check_lang.py"
+      - ".github/workflows/ci.yml"
+  schedule:
+    - cron: "0 18 * * *" # 03:00 JST
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # a2dpwb.exe embeds the built UI (app/src/ui/dist, frontendDist in
+      # tauri.conf.json); the ui job builds it, here an empty folder lets
+      # the Rust side compile
+      - name: Placeholder for the UI build
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force app/src/ui/dist | Out-Null
+      # opus-sys takes libopus's version from `git describe` of the
+      # submodule; the shallow checkout has no tags
+      - name: Tags of extern/opus
+        run: git -C extern/opus fetch --depth 1 --tags origin
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test --workspace
+      - name: No unsafe outside the FFI crates
+        shell: pwsh
+        run: |
+          $allowed = 'btstack-sys','ldac-sys','openaptx-sys','fdkaac-sys','lhdcv5-sys','opus-sys','lc3-sys','win-sys'
+          # a counting GlobalAlloc (unsafe impl by definition) in a test
+          $allowedFiles = 'crates/pipeline/tests/le_no_alloc.rs'
+          $src = (Resolve-Path app/src).Path
+          $bad = Get-ChildItem $src -Recurse -Filter *.rs |
+            Where-Object { $_.FullName -notmatch '\\(node_modules|target)\\' } |
+            Where-Object { $allowedFiles -notcontains ([IO.Path]::GetRelativePath($src, $_.FullName) -replace '\\', '/') } |
+            Where-Object {
+              # app/src/crates/<crate>/... or app/src/<core|driver|ui>/...
+              $parts = [IO.Path]::GetRelativePath($src, $_.FullName) -split '[\\/]'
+              $crate = if ($parts[0] -eq 'crates') { $parts[1] } else { $parts[0] }
+              $allowed -notcontains $crate
+            } |
+            Select-String -Pattern '\bunsafe\s*(\{|fn|impl|extern)' -List
+          if ($bad) { $bad | ForEach-Object { Write-Host $_ }; exit 1 }
+
+  licenses:
+    # cargo-deny-action is a container action: Linux runners only
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: Cargo.toml
+
+  ui:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app/src/ui
+    steps:
+      - uses: actions/checkout@v4
+      # the pnpm version is packageManager in app/src/ui/package.json
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/src/ui/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/src/ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec vitest run
+      - run: python ../../../tools/check_lang.py
+
+  emulator:
+    name: Emulator end to end (all codecs, LE Audio)
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bumble environment
+        run: python tools/emu/setup_env.py
+      - name: a2dpwb_decode (decoder tool)
+        run: |
+          cmake -S tools/a2dp_decode -B build/a2dp_decode -A x64
+          cmake --build build/a2dp_decode --config Release
+      - name: a2dpwb-core.exe
+        run: cargo build --release -p a2dpwb-core-exe
+      - name: run_test.py
+        run: >
+          tools/emu/.venv/Scripts/python.exe tools/emu/run_test.py
+          --a2dpwb target/release/a2dpwb-core.exe
+          --decoder build/a2dp_decode/Release/a2dpwb_decode.exe
+          --out emu-out
+      # LE Audio (experimental): the 39 cases of tools/emu/le_audio_tests,
+      # also when an A2DP case failed
+      - name: run_test.py --le-audio
+        if: ${{ !cancelled() }}
+        run: >
+          tools/emu/.venv/Scripts/python.exe tools/emu/run_test.py --le-audio
+          --a2dpwb target/release/a2dpwb-core.exe
+          --decoder build/a2dp_decode/Release/a2dpwb_decode.exe
+          --out emu-out-le
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: emu-out
+          path: |
+            emu-out
+            emu-out-le

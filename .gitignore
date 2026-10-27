@@ -1,0 +1,16 @@
+/data/
+/settings.json
+/tools/
+/dist/
+/release/
+*.exe
+*.obj
+*.pdb
+*.lib
+*.exp
+*.ilk
+*.log
+*.tmp
+*.zip
+!dependencies/VBCABLE_Driver_Pack45.zip
+!dependencies/VBCABLE/*.exe

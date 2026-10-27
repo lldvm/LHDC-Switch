@@ -1,0 +1,54 @@
+[
+  {
+    "name": "env_logger",
+    "version": "0.10.2",
+    "license": "MIT OR Apache-2.0",
+    "source": "https://github.com/rust-cli/env_logger",
+    "texts": [
+      "LICENSE-APACHE",
+      "LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "humantime",
+    "version": "2.4.0",
+    "license": "MIT OR Apache-2.0",
+    "source": "https://github.com/chronotope/humantime",
+    "texts": [
+      "LICENSE-APACHE",
+      "LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "is-terminal",
+    "version": "0.4.17",
+    "license": "MIT",
+    "source": "https://github.com/sunfishcode/is-terminal",
+    "texts": [
+      "LICENSE-MIT",
+      "LICENSE-MIT-atty"
+    ]
+  },
+  {
+    "name": "zerocopy",
+    "version": "0.8.63",
+    "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+    "source": "https://github.com/google/zerocopy",
+    "texts": [
+      "LICENSE-APACHE",
+      "LICENSE-BSD",
+      "LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "zerocopy-derive",
+    "version": "0.8.63",
+    "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+    "source": "https://github.com/google/zerocopy",
+    "texts": [
+      "LICENSE-APACHE",
+      "LICENSE-BSD",
+      "LICENSE-MIT"
+    ]
+  }
+]

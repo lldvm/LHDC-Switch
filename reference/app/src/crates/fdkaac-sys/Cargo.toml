@@ -1,0 +1,30 @@
+[package]
+name = "fdkaac-sys"
+description = "Fraunhofer FDK AAC (encoder; decoder behind a feature) built from extern/fdk-aac, with the FFI and a safe layer"
+version.workspace = true
+edition.workspace = true
+# The wrapper code in this crate; the C++ library it builds is under the
+# Fraunhofer FDK AAC licence (extern/fdk-aac/NOTICE, THIRD_PARTY_LICENSES.md §3)
+license.workspace = true
+publish.workspace = true
+links = "fdkaac"
+build = "build.rs"
+
+[features]
+# The AAC decoder (and the libraries only it needs), for round-trip tests
+decoder = []
+
+[build-dependencies]
+cc.workspace = true
+
+[dev-dependencies]
+# The round-trip test decodes what the codec crate's AacEncoder produces
+# (a dev-dependency cycle, which cargo allows)
+codec = { path = "../codec", default-features = false, features = ["aac"] }
+
+[[test]]
+name = "aac_round_trip"
+required-features = ["decoder"]
+
+[lints]
+workspace = true

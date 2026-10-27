@@ -1,0 +1,20 @@
+[package]
+name = "ipc"
+description = "Protocol between a2dpwb-core.exe and the UI: message and state types (TypeScript generated with ts-rs) and the framed Named Pipe transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { version = "1", features = ["io-util", "net"] }
+ts-rs = { version = "12", features = ["serde-json-impl"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "net", "rt", "macros"] }
+
+[lints]
+workspace = true

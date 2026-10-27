@@ -1,0 +1,6 @@
+{%- include lang_vars.html -%}
+<ul class="lang-list" aria-label="Language">
+  {%- for l in site.languages %}
+  <li><a lang="{{ l.code }}" href="{% include lang_url.html code=l.code %}"{% if l.code == lang_current %} aria-current="page"{% endif %}>{{ l.name }}</a></li>
+  {%- endfor %}
+</ul>

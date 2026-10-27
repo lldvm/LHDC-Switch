@@ -1,0 +1,2 @@
+{%- comment -%}Prints the relative URL of this page in language include.code (lang_vars.html first).{%- endcomment -%}
+{%- if include.code == "en" -%}{{ lang_rel | relative_url }}{%- else -%}{{ "/" | append: include.code | append: lang_rel | relative_url }}{%- endif -%}

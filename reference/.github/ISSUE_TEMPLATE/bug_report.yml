@@ -1,0 +1,110 @@
+name: Bug report
+description: Something isn't working right? Let me know!
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report! 🙏
+        Don't worry about getting everything perfect — fill in what you can, and "I don't know" is a perfectly fine answer.
+        Rough reports are welcome, and I'll ask if I need more details.
+
+  - type: input
+    id: version
+    attributes:
+      label: A2DPWB version
+      description: Shown in Settings → About A2DPWB.
+      placeholder: e.g. 2.0.0
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Run `winver` to see it.
+      placeholder: e.g. Windows 11 24H2 (build 26100)
+
+  - type: input
+    id: adapter
+    attributes:
+      label: USB Bluetooth adapter
+      description: Product name is enough. Chipset / VID:PID is a bonus if you happen to know it.
+      placeholder: e.g. TP-Link UB500 (Realtek RTL8761B, 2357:0604)
+
+  - type: input
+    id: headphones
+    attributes:
+      label: Headphones / speaker
+      placeholder: e.g. Sony WH-1000XM4
+
+  - type: dropdown
+    id: codec
+    attributes:
+      label: Codec
+      description: The codec you selected (or Auto).
+      options:
+        - Auto
+        - LDAC
+        - aptX HD
+        - aptX Low Latency
+        - aptX
+        - LHDC V5
+        - Opus
+        - AAC
+        - SBC XQ
+        - SBC
+        - FastStream
+        - Not relevant / didn't get that far
+
+  - type: dropdown
+    id: capture_mode
+    attributes:
+      label: Capture mode
+      options:
+        - System Loopback
+        - Virtual Device
+        - Application
+        - Not relevant
+
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface
+      options:
+        - Window / tray
+        - CLI (a2dpwb-core.exe --cli)
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What you expected, and what actually happened. A short description is fine.
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If you can. Skip it if it happened out of nowhere.
+      placeholder: |
+        1. Select adapter ...
+        2. Connect to ...
+        3. ...
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics / log
+      description: |
+        Optional, but it helps a lot.
+
+        1. Reproduce the problem.
+        2. Open **Diagnostics** and click **Copy Diagnostics** (version, adapter, connection flow and recent log; Bluetooth addresses are masked by default), then paste it here.
+        3. If you can, attach the log file too: `%APPDATA%\A2DPWB\logs\a2dpwb-core.<date>.log` (**Settings → Open Config Folder**; the last 7 days are kept). **Settings → Developer mode** adds more details to the log.
+
+        For connection problems, an HCI capture (**Diagnostics → Start HCI Capture**, a `.pklg` file in the config folder that opens in Wireshark) is also very helpful. It contains Bluetooth addresses, device names and pairing keys, so if you'd rather not post it publicly, email it instead (address on the maintainer's GitHub profile).
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, other adapters or headphones you tried, etc.

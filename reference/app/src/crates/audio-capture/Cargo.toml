@@ -1,0 +1,19 @@
+[package]
+name = "audio-capture"
+description = "Audio sources for A2DPWB: WASAPI loopback (system, device, application) and the test tone"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wasapi = "0.26.0"
+win-sys.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "opus-sys"
+description = "libopus (Xiph.Org, BSD-3-Clause) built from extern/opus, with the FFI and a small safe layer"
+version.workspace = true
+edition.workspace = true
+# The wrapper code in this crate; the C library it builds is BSD-3-Clause
+# (extern/opus/COPYING, THIRD_PARTY_LICENSES.md)
+license.workspace = true
+publish.workspace = true
+links = "opus"
+build = "build.rs"
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+AOSP LHDC V5 Rust encoder, Apache-2.0.
+Vendored from https://github.com/DBeidachazi/liblhdcv5/tree/0df76b08196dc26e460404189279b17a7101af74/aosp
+Mirror provenance: Android tag android-17.0.0_r1, system/audio/codecs/lhdcv5,
+commit c77db469de80f86660bc053bec4dee0c5d4b947c.
+Signal-processing/compression kernels are copied without changes. Local
+Cargo.toml changes crate-type from staticlib to rlib for Windows integration.
+LHDC Switch 2.4.2 extends src/lhdc_api.rs with a validated exact-rate setter
+for 700/750/800 kbps. src/lhdc_api/lhdc_api_internal.rs compares actual rate
+values when returning from a custom target to a stock preset. The existing
+deferred frame-info update and compression routines remain in use.
+Dependencies are pinned in the enclosing reference/Cargo.lock.
+Windows safety adaptation is outside this directory, in lhdcv5-sys/src/aosp.rs.

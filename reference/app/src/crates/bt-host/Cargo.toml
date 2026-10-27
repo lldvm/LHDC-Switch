@@ -1,0 +1,18 @@
+[package]
+name = "bt-host"
+description = "The Bluetooth host: BTstack on its own thread (A2DP source, AVRCP, GAP, AFH, firmware, HCI capture)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+btstack-sys.workspace = true
+hci-transport.workspace = true
+codec.workspace = true
+le-audio.workspace = true
+tracing.workspace = true
+rtrb.workspace = true
+
+[lints]
+workspace = true

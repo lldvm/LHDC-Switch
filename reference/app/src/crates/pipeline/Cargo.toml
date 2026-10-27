@@ -1,0 +1,20 @@
+[package]
+name = "pipeline"
+description = "The audio path between capture and Bluetooth: PCM ring, format conversion, downmix, encoding, media payloads, ABR"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+bt-host.workspace = true
+codec = { workspace = true, features = ["lc3"] }
+le-audio.workspace = true
+tracing.workspace = true
+rtrb.workspace = true
+
+[dev-dependencies]
+proptest = "1"
+
+[lints]
+workspace = true

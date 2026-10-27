@@ -1,0 +1,14 @@
+{
+  "media_clock": true,
+  "recovery": "temporary probe cooldown, no permanent ceiling",
+  "version": "2.4.2",
+  "initial_buffer_ms": 20,
+  "backend": "AOSP Rust",
+  "label": "Rust · 2.4.2",
+  "congestion": "packetization-aware duration + queue-age + new local losses",
+  "custom_kbps": [
+    700,
+    750,
+    800
+  ]
+}

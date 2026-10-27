@@ -1,0 +1,17 @@
+[package]
+name = "lc3-sys"
+description = "liblc3 (Google, Apache-2.0) built from extern/btstack/3rd-party/lc3-google, with the FFI and a small safe encoder"
+version.workspace = true
+edition.workspace = true
+# The wrapper code in this crate; the C library it builds is Apache-2.0
+# (extern/btstack/3rd-party/lc3-google/LICENSE, THIRD_PARTY_LICENSES.md)
+license.workspace = true
+publish.workspace = true
+links = "lc3"
+build = "build.rs"
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true

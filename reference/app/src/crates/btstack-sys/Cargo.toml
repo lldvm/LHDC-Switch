@@ -1,0 +1,22 @@
+[package]
+name = "btstack-sys"
+description = "BTstack built from extern/btstack, with the FFI and the safe layer A2DPWB uses"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+links = "btstack"
+build = "build.rs"
+
+[features]
+# Bluedroid SBC encoder (C), for the bit-exactness test of the Rust SBC port
+sbc-reference = []
+
+[dependencies]
+tracing.workspace = true
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true

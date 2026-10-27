@@ -1,0 +1,12 @@
+{%- comment -%}
+  Sets lang_current (this page's language code) and lang_rel (this page's
+  path below its language's root, starting with "/"), so the same page in
+  language L is "/" + lang_rel for English and "/L" + lang_rel otherwise.
+{%- endcomment -%}
+{%- assign lang_current = page.lang | default: "en" -%}
+{%- if lang_current == "en" -%}
+  {%- assign lang_rel = page.url -%}
+{%- else -%}
+  {%- assign lang_prefix = "/" | append: lang_current | append: "/" -%}
+  {%- assign lang_rel = page.url | remove_first: lang_prefix | prepend: "/" -%}
+{%- endif -%}

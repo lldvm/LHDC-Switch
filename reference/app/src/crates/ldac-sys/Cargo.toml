@@ -1,0 +1,15 @@
+[package]
+name = "ldac-sys"
+description = "libldac (AOSP LDAC encoder with its ABR module) built from extern/libldac, with the FFI and a small safe layer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+links = "ldac"
+build = "build.rs"
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,42 @@
+# Modified by LHDC Switch contributors, 2026-10-27. See engine-source/MODIFICATIONS.md at the LHDC Switch repository root.
+[package]
+name = "a2dpwb-core-exe"
+description = "a2dpwb-core.exe: the resident A2DPWB process (tray, IPC) and the command line"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+aosp-rust = ["codec/aosp-rust"]
+
+[[bin]]
+name = "a2dpwb-core"
+path = "src/main.rs"
+
+[dependencies]
+a2dpwb-core.workspace = true
+bt-host.workspace = true
+# cli.rs: -u (UsbSelector)
+hci-transport.workspace = true
+codec = { workspace = true, features = ["default"] }
+ipc.workspace = true
+win-sys.workspace = true
+audio-capture.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ctrlc = "3"
+# logging.rs: daily log files, local timestamps
+tracing-appender = "0.2"
+time = { version = "0.3", features = ["local-offset"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "net", "time", "macros", "io-util"] }
+tray-icon = "0.26"
+tao = "0.37"
+
+[build-dependencies]
+embed-resource = "3"
+
+[lints]
+workspace = true

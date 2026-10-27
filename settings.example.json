@@ -1,0 +1,14 @@
+{
+  "InstanceId": "USB\\VID_8087&PID_0026\\CONFIGURE_ME",
+  "Address": "00:00:00:00:00:00",
+  "Headphone": "请先运行 配置设备.cmd",
+  "Quality": "abr700",
+  "Application": "",
+  "SampleRate": 48000,
+  "TestTone": false,
+  "ExclusiveOutput": true,
+  "AudioDeviceId": null,
+  "AfhPolicy": "auto",
+  "ActiveRadio": true,
+  "CloseToTray": true
+}

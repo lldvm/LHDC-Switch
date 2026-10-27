@@ -1,0 +1,118 @@
+/* The app shell's own pieces: the notices above every screen, the HCI
+   capture sign, the capture source line. Built on app.css' tokens. */
+
+.app-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--s4) var(--s6) 0;
+}
+.app-notices:empty {
+  display: none;
+}
+
+/* "HCI capture running": v1 put it in the title bar */
+.capture-sign {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s2);
+  border: 1px solid color-mix(in srgb, var(--bad) 55%, transparent);
+  border-radius: var(--r);
+  color: var(--bad-text);
+  font-size: var(--fs-12);
+  background: none;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  min-width: 0;
+}
+.capture-sign:hover {
+  background: color-mix(in srgb, var(--bad) 9%, transparent);
+}
+.capture-sign .dot {
+  flex: none;
+}
+.shell.nav-collapsed .capture-sign {
+  justify-content: center;
+}
+.shell.nav-collapsed .capture-sign .capture-sign-text {
+  display: none;
+}
+@media (max-width: 860px) {
+  .shell:not(.nav-expanded) .capture-sign {
+    justify-content: center;
+  }
+  .shell:not(.nav-expanded) .capture-sign .capture-sign-text {
+    display: none;
+  }
+}
+
+/* The source a running stream captures */
+.capture-source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 0;
+  color: var(--text-2);
+}
+.capture-source.st-warn {
+  color: var(--warn-text);
+}
+.mini-body .capture-source {
+  color: inherit;
+}
+.mini-body .capture-source.st-warn {
+  color: var(--warn-text);
+}
+
+.fly-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--fs-12);
+  min-width: 0;
+}
+.fly-meta .capture-sign {
+  flex: none;
+  padding: 0 var(--s2);
+}
+.fly-foot .spacer {
+  flex: 1;
+}
+
+/* The capture source, chosen in place (Home, flyout) */
+.capture-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  flex: 1;
+  min-width: 0;
+}
+.capture-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+.capture-picker-row > .icon {
+  flex: none;
+}
+.capture-picker.st-warn .capture-picker-row > .icon,
+.capture-waiting {
+  color: var(--warn-text);
+}
+.capture-waiting {
+  font-size: var(--fs-12);
+}
+.capture-picker .select {
+  flex: 1;
+  min-width: 0;
+}
+.capture-picker select {
+  width: 100%;
+  text-overflow: ellipsis;
+}

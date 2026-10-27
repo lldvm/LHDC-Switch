@@ -1,0 +1,85 @@
+{%- include lang_vars.html -%}
+{%- if lang_current != "en" %}
+<script>document.documentElement.lang = '{{ lang_current }}';</script>
+{%- endif %}
+{%- for l in site.languages %}
+<link rel="alternate" hreflang="{{ l.code }}" href="{{ site.url }}{% include lang_url.html code=l.code %}">
+{%- endfor %}
+<link rel="alternate" hreflang="x-default" href="{{ site.url }}{% include lang_url.html code='en' %}">
+<style>
+{%- comment -%}
+  The sidebar lists every language's pages; show only this page's language.
+  A translation lives under its home page (/<code>/), which is shown flattened
+  so the sidebar looks the same as the English one. Items are matched by any
+  link inside the folder: the theme drops the href of the current page's own
+  link, so the home link alone cannot be relied on.
+{%- endcomment -%}
+{%- if lang_current == "en" %}
+{%- for l in site.languages %}{% if l.code != "en" %}
+.site-nav > .nav-list > .nav-list-item:has(a[href^="{{ '/' | append: l.code | append: '/' | relative_url }}"]) { display: none; }
+{%- endif %}{% endfor %}
+{%- else %}
+{%- assign lang_home = "/" | append: lang_current | append: "/" | relative_url %}
+.site-nav > .nav-list > .nav-list-item:not(:has(a[href^="{{ lang_home }}"])) { display: none; }
+.site-nav > .nav-list > .nav-list-item:has(a[href^="{{ lang_home }}"]) > .nav-list { display: block !important; padding-left: 0 !important; }
+.site-nav > .nav-list > .nav-list-item:has(a[href^="{{ lang_home }}"]) > .nav-list-expander { display: none !important; }
+{%- endif %}
+
+.lang-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  padding: 0.5rem 1rem;
+}
+/* Phones hide the whole header until the menu opens; keep the language row. */
+@media (max-width: 49.99rem) {
+  .side-bar + .main .main-header:not(.nav-open) {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .side-bar + .main .main-header:not(.nav-open) > :not(.lang-menu) {
+    display: none;
+  }
+}
+.lang-menu svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: none;
+  color: #e6e1e8;
+}
+.lang-menu select {
+  color-scheme: dark;
+  color: #e6e1e8;
+  background-color: #27262b;
+  border: 1px solid #44434d;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.lang-menu select:hover,
+.lang-menu select:focus {
+  border-color: #2c84fa;
+}
+ul.lang-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+ul.lang-list > li {
+  margin: 0;
+}
+ul.lang-list > li::before {
+  content: none;
+}
+.lang-list a[aria-current] {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+</style>

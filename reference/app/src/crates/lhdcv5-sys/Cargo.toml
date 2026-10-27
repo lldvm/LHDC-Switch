@@ -1,0 +1,22 @@
+# Modified by LHDC Switch contributors, 2026-10-27. See engine-source/MODIFICATIONS.md at the LHDC Switch repository root.
+[package]
+name = "lhdcv5-sys"
+description = "LHDC V5 encoder (portable C port of the AOSP encoder) built from extern/lhdcv5-enc, with the FFI and a small safe layer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+links = "lhdcv5"
+build = "build.rs"
+
+[features]
+aosp-rust = ["dep:lhdcv5"]
+
+[dependencies]
+lhdcv5 = { path = "../../../../extern/aosp-lhdcv5", optional = true }
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true
