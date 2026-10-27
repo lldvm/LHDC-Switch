@@ -1,4 +1,4 @@
-LHDC Switch public distribution, v2.4.2
+LHDC Switch public distribution, v2.4.3
 Modified core and complete corresponding source: https://github.com/lldvm/LHDC-Switch
 See the repository SOURCE.md, docs/BUILDING.zh-CN.md and the source-with-submodules release archive.
 The original driver helper remains from upstream v2.0.1. Original upstream source notice follows.

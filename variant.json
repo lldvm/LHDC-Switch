@@ -1,14 +1,15 @@
-{
-  "media_clock": true,
-  "recovery": "temporary probe cooldown, no permanent ceiling",
-  "version": "2.4.2",
-  "initial_buffer_ms": 20,
-  "backend": "AOSP Rust",
-  "label": "Rust · 2.4.2",
-  "congestion": "packetization-aware duration + queue-age + new local losses",
-  "custom_kbps": [
-    700,
-    750,
-    800
-  ]
+﻿{
+    "congestion":  "packetization-aware duration + queue-age + new local losses",
+    "backend":  "AOSP Rust",
+    "version":  "2.4.3",
+    "label":  "Rust · 2.4.3",
+    "recovery":  "15/30/60 second per-stage retry, transient jitter tolerance, no permanent ceiling",
+    "initial_buffer_ms":  20,
+    "custom_kbps":  [
+                        700,
+                        750,
+                        800
+                    ],
+    "media_clock":  true,
+    "sender":  "producer deadline only, no post-send gate, 120 ms stale-head budget"
 }

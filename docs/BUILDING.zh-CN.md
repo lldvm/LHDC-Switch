@@ -9,14 +9,14 @@ Windows x64；Rust stable MSVC（最低 1.90，开发验证 1.99.1）；Visual S
 ```powershell
 git clone --recurse-submodules https://github.com/lldvm/LHDC-Switch.git
 cd LHDC-Switch
-git checkout v2.4.2
+git checkout v2.4.3
 git submodule update --init --recursive
 powershell -ExecutionPolicy Bypass -File .\build-public.ps1
 ```
 
 `reference/` 是已应用改动的上游源代码快照，并非待打补丁的原版，**不要再次套用 adaptive.patch**。六个 C 库以根目录 `.gitmodules` 和 Git 提交锁定；AOSP Rust 编码器完整收录于 `reference/extern/aosp-lhdcv5/`。`Cargo.lock` 固定 Rust 依赖。
 
-Release 同时提供 `LHDC-Switch-v2.4.2-source-with-submodules.zip`，包含本项目及六个子模块的完整源码，解压即可构建，无需从 Git 初始化子模块；Cargo 首次构建仍需下载锁定的 crates。GitHub 自动生成的 Source code 压缩包不包含子模块，请勿混淆。
+Release 同时提供 `LHDC-Switch-v2.4.3-source-with-submodules.zip`，包含本项目及六个子模块的完整源码，解压即可构建，无需从 Git 初始化子模块；Cargo 首次构建仍需下载锁定的 crates。GitHub 自动生成的 Source code 压缩包不包含子模块，请勿混淆。
 
 `build-engine.ps1` 从 `reference/` 构建 `a2dpwb-core-exe --features aosp-rust` 并运行相关检查；`build-public.ps1` 另外构建 `a2dpwb-driver`、复制两个程序，调用 `build.ps1` 编译本项目 C++ 辅助程序和 C# 界面，按本次生成文件重新生成 `src/Integrity.cs`。保留 `.cargo/config.toml` 的静态 CRT 配置。上游 Tauri 图形界面不随本项目发布，也不需要编译。
 
@@ -33,7 +33,7 @@ Get-Content data/selftest-results.json
 Get-Content data/ipc-test-results.json
 ```
 
-控制器自检 47 项；2.4.2 编码器定向单元检查 12 项、分包集成检查 11 项，覆盖所有四种采样率、新固定档 / 自动上限的实际字节量与 MTU、码率切换及恢复。额外传输 / 流水线检查由 `build-engine.ps1` 执行。检查通过不等于所有无线环境和耳机通过听音验证。
+控制器自检 47 项；2.4.3 编码器定向单元检查 15 项、分包集成检查 11 项，覆盖所有四种采样率、新固定档 / 自动上限的实际字节量与 MTU、码率切换及恢复。传输 73 项、流水线 24 项、运行循环 2 项检查通过。额外传输 / 流水线检查由 `build-engine.ps1` 执行。检查通过不等于所有无线环境和耳机通过听音验证。
 
 ## 修改依赖与重新链接
 

@@ -577,6 +577,11 @@ impl Service {
             Box::new(win_sys::mmcss::MmcssGuard::register(win_sys::mmcss::MmcssTask::ProAudio).ok())
         });
         pipeline::set_packet_wait_hook(win_sys::mmcss::media_wait);
+        bt_host::set_thread_priority_hook(|| {
+            let guard=win_sys::mmcss::MmcssGuard::register(win_sys::mmcss::MmcssTask::ProAudio);
+            if let Err(error)=&guard {tracing::warn!("Bluetooth run-loop MMCSS registration failed: {error}");}
+            Box::new(guard.ok())
+        });
         hci_transport::set_acl_out_priority_hook(|| {
             Box::new(win_sys::mmcss::MmcssGuard::register(win_sys::mmcss::MmcssTask::ProAudio).ok())
         });

@@ -13,11 +13,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Adaptive encoder tests failed' }
     cargo test --release --locked -p codec --features aosp-rust --test lhdcv5
     if ($LASTEXITCODE -ne 0) { throw 'LHDC packet tests failed' }
-    cargo test --release --locked -p bt-host --lib radio_tests
-    if ($LASTEXITCODE -ne 0) { throw 'HCI radio response tests failed' }
+    cargo test --release --locked -p bt-host --lib
+    if ($LASTEXITCODE -ne 0) { throw 'Bluetooth host and sender tests failed' }
     cargo test --release --locked -p bt-host --test afh
     if ($LASTEXITCODE -ne 0) { throw 'AFH tests failed' }
     cargo test --release --locked -p ipc -p pipeline --lib
     if ($LASTEXITCODE -ne 0) { throw 'Telemetry and pipeline tests failed' }
+    cargo test --release --locked -p btstack-sys --test run_loop
+    if ($LASTEXITCODE -ne 0) { throw 'Bluetooth run-loop tests failed' }
     Write-Output 'Verified engine: reference\target\release\a2dpwb-core.exe. Stop the session before replacing the packaged engine and rebuilding the controller.'
 } finally { Pop-Location }

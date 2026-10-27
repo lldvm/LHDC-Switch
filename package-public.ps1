@@ -1,4 +1,4 @@
-﻿param([string]$OutputPath=(Join-Path $PSScriptRoot 'dist\LHDC-Switch-v2.4.2-win-x64.zip'))
+﻿param([string]$OutputPath=(Join-Path $PSScriptRoot 'dist\LHDC-Switch-v2.4.3-win-x64.zip'))
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $taskOutput=[IO.Path]::GetFullPath($OutputPath)

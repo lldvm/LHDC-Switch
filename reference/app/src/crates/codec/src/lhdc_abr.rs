@@ -1,3 +1,4 @@
+// Modified by LHDC Switch contributors, 2026-10-27. See engine-source/MODIFICATIONS.md at the LHDC Switch repository root.
 //! LHDC Switch adaptive policy. Time based, independent of packet size/rate.
 use std::time::Duration;
 
@@ -7,10 +8,11 @@ pub(crate) struct Abr {
     pub start: usize,
     clear_since: Duration,
     congested_since: Option<Duration>,
+    mild_since: Option<Duration>,
     next_probe: Duration,
     probe_delay: Duration,
     /// Failed probes pause only that stage, never lower the session ceiling.
-    blocked_probe: Option<(usize, Duration)>,
+    blocked_probe: Option<(usize, Duration, u8)>,
     next_reduction: Duration,
     last_raise: Option<(usize, Duration)>,
 }
@@ -24,22 +26,36 @@ impl Abr {
         let table = if table.is_empty() { vec![rates[min]] } else { table };
         let start = table.iter().rposition(|r| *r <= 400).unwrap_or(0);
         Self { table, index: start, start, clear_since: Duration::ZERO,
-            congested_since: None, next_probe: Duration::from_secs(5), probe_delay: Duration::from_secs(15),
+            congested_since: None, mild_since: None, next_probe: Duration::from_secs(5), probe_delay: Duration::from_secs(15),
             blocked_probe: None, next_reduction: Duration::ZERO, last_raise: None }
     }
 
     // A few packets are normal with 10 ms capture bursts. Sustained backlog
     // reduces rate before the 64-packet ring fills; severe backlog acts at once.
     pub fn target(&mut self, queue: u32, now: Duration) -> Option<usize> {
+        // An actually successful retry clears that stage's failure history.
+        if self.blocked_probe.is_some_and(|(stage,_,_)| self.index>=stage)
+            && self.last_raise.is_some_and(|(_,at)| now.saturating_sub(at)>=Duration::from_secs(30)) {
+            self.blocked_probe=None;
+        }
         if queue >= 4 {
-            self.clear_since = now;
-            if now < Duration::from_secs(2) && queue < 24 { return None; }
+            self.mild_since=None;
             let since = *self.congested_since.get_or_insert(now);
+            let sustained=queue>=24 || now.saturating_sub(since)>=Duration::from_millis(60);
+            // A short scheduling spike must not restart a five-second clean
+            // window forever. Sustained congestion still resets it and acts.
+            if sustained {self.clear_since=now;}
+            if now < Duration::from_secs(2) && queue < 24 { return None; }
             if self.index > 0 && now >= self.next_reduction
-                && (queue >= 24 || now.saturating_sub(since) >= Duration::from_millis(60)) {
+                && sustained {
                 if let Some((raised, at)) = self.last_raise.take() {
                     if raised == self.index && now.saturating_sub(at) <= Duration::from_secs(6) {
-                        self.blocked_probe = Some((raised,now + Duration::from_secs(60)));
+                        let failures=self.blocked_probe.filter(|(stage,_,_)| *stage==raised)
+                            .map_or(1,|(_,_,count)| count.saturating_add(1).min(3));
+                        let retry=Duration::from_secs(15u64 << (failures-1));
+                        self.blocked_probe = Some((raised,now + retry,failures));
+                        tracing::info!("LHDC ABR: {} kbps probe failed; retry in {} s (failure {})",
+                            self.table[raised],retry.as_secs(),failures);
                     }
                 }
                 self.congested_since = Some(now);
@@ -53,10 +69,15 @@ impl Abr {
             }
         } else {
             self.congested_since = None;
-            if queue > 1 { self.clear_since = now; }
-            let hold = if self.table.get(self.index + 1).is_some_and(|r| *r >= 900) { 20 }
+            if queue > 1 {
+                let since=*self.mild_since.get_or_insert(now);
+                if now.saturating_sub(since)>=Duration::from_millis(250) {self.clear_since=now;}
+            } else {self.mild_since=None;}
+            // The old 20 s high-rate hold protected a 500 -> 900 jump. With
+            // 700/750/800 stages, a small step does not need the same penalty.
+            let hold = if self.table.get(self.index + 1).is_some_and(|r| *r>=900 && *r>self.table[self.index]*4/3) { 20 }
                 else if self.index < self.start {3} else {5};
-            let probe_blocked=self.blocked_probe.is_some_and(|(stage,until)| self.index+1>=stage && now<until);
+            let probe_blocked=self.blocked_probe.is_some_and(|(stage,until,_)| self.index+1>=stage && now<until);
             if queue <= 1 && self.index + 1 < self.table.len() && !probe_blocked && now >= self.next_probe
                 && now.saturating_sub(self.clear_since) >= Duration::from_secs(hold) {
                 self.clear_since = now;
@@ -114,10 +135,47 @@ mod tests {
         for t in [5,25] { let i=a.target(0,Duration::from_secs(t)).unwrap(); a.index=i; }
         assert_eq!(a.table[a.index],900);
         let i=a.target(24,Duration::from_secs(26)).unwrap(); a.index=i;
-        for t in 27..86 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
+        for t in 27..46 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
         assert_eq!(a.table[a.index],500);
-        for t in 86..180 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
+        for t in 46..100 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
         assert_eq!(a.table[a.index],1000);
+    }
+    #[test]
+    fn brief_periodic_jitter_does_not_pin_500_or_480_forever() {
+        for middle in [480,500] {
+            let rates=[160,192,256,320,400,middle,700,750,800,900,1000];
+            let mut a=Abr::new(&rates,0,10,900);a.index=5;
+            for tick in 0..3500 {
+                let ms=tick*10;
+                let pressure=match ms%1000 {0..20=>2,20..40=>4,_=>0};
+                if let Some(i)=a.target(pressure,Duration::from_millis(ms)) {a.index=i;}
+            }
+            assert_eq!(a.table[a.index],900,"periodic 40 ms host jitter at {middle}");
+        }
+    }
+    #[test]
+    fn sustained_mild_backlog_still_blocks_upward_probes() {
+        let mut a=Abr::new(&R,0,8,900);
+        a.index=a.table.iter().position(|r| *r==500).unwrap();
+        for ms in (0..10_000).step_by(10) {assert!(a.target(2,Duration::from_millis(ms)).is_none());}
+        for ms in (10_000..14_990).step_by(10) {assert!(a.target(0,Duration::from_millis(ms)).is_none());}
+        assert!(a.target(0,Duration::from_secs(30)).is_some());
+    }
+    #[test]
+    fn failed_stage_backoff_grows_15_30_60_and_success_clears_it() {
+        let rates=[160,192,256,320,400,500,700,750,800,900];
+        let mut a=Abr::new(&rates,0,9,900);
+        for (attempt,t) in [(1u8,10u64),(2,40),(3,90),(3,180)] {
+            a.index=6;a.last_raise=Some((6,Duration::from_secs(t)));
+            a.next_reduction=Duration::ZERO;
+            let i=a.target(24,Duration::from_secs(t+1)).unwrap();a.index=i;
+            let (_,until,count)=a.blocked_probe.unwrap();
+            assert_eq!(count,attempt);
+            assert_eq!(until,Duration::from_secs(t+1+(15u64<<(attempt-1))));
+        }
+        a.index=6;a.last_raise=Some((6,Duration::from_secs(250)));
+        a.target(0,Duration::from_secs(281));
+        assert!(a.blocked_probe.is_none());
     }
     #[test]
     fn reductions_wait_for_the_previous_change_and_floor_recovers() {

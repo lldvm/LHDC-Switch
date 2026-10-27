@@ -180,7 +180,7 @@ index eff0a80..05d4cec 100644
                      streaming: false,
                      tooltip: "A2DPWB".into(),
 diff --git a/app/src/crates/bt-host/src/app.rs b/app/src/crates/bt-host/src/app.rs
-index f859489..3087ff6 100644
+index f859489..0992caf 100644
 --- a/app/src/crates/bt-host/src/app.rs
 +++ b/app/src/crates/bt-host/src/app.rs
 @@ -29,13 +29,19 @@ use crate::{AfhClassification, ConnectFailure, Controls, DiscoveredDevice, HostE
@@ -206,7 +206,7 @@ index f859489..3087ff6 100644
  const PLAYBACK_TICK_MS: u32 = 1000;
  /// No audio for ~2 s = paused
  const PLAYBACK_IDLE_TICKS: u32 = 2;
-@@ -116,7 +122,11 @@ pub(crate) struct HostApp {
+@@ -116,7 +122,10 @@ pub(crate) struct HostApp {
      afh_ticks: u32,
      /// The next radio reading is RSSI (else the AFH map). Its own toggle: a
      /// classification sent on a tick must not always skip the same reading
@@ -214,12 +214,11 @@ index f859489..3087ff6 100644
 +    radio_read_next: u8,
 +    power_read_max: bool,
 +    last_media_sent: Option<Instant>,
-+    send_clock: crate::send_clock::SendClock,
 +    media_timer_due: Option<Instant>,
  }
  
  impl HostApp {
-@@ -169,7 +179,11 @@ impl HostApp {
+@@ -169,7 +178,10 @@ impl HostApp {
              afh_sent_map: None,
              afh_policy_version_seen: None,
              afh_ticks: 0,
@@ -227,12 +226,11 @@ index f859489..3087ff6 100644
 +            radio_read_next: 0,
 +            power_read_max: false,
 +            last_media_sent: None,
-+            send_clock: Default::default(),
 +            media_timer_due: None,
          }
      }
  
-@@ -222,6 +236,8 @@ impl HostApp {
+@@ -222,6 +234,8 @@ impl HostApp {
          // Audio (major 0x04), Hi-Fi audio device (minor 0x28), A2DP source;
          // page timeout ~20 s (0x8000 * 0.625 ms)
          stack.gap_setup(0x200428, 0x8000);
@@ -241,21 +239,24 @@ index f859489..3087ff6 100644
          // L2CAP before any profile: it registers with HCI for Connection
          // Complete events
          stack.l2cap_init();
-@@ -455,6 +471,11 @@ impl HostApp {
+@@ -455,6 +469,10 @@ impl HostApp {
      /// a lost link are stale: dropped before the encode thread may queue
      /// again (v1 flushed after a reconnect).
      fn set_streaming(&mut self, on: bool) {
 +        if on != self.streaming {
 +            self.last_media_sent = None;
-+            self.send_clock = Default::default();
 +            self.media_timer_due = None;
 +        }
          if on && !self.streaming {
              let stale = self.media.slots();
              if stale > 0 {
-@@ -471,15 +492,44 @@ impl HostApp {
+@@ -470,16 +488,51 @@ impl HostApp {
+     }
  
      fn kick_media(&mut self, stack: &Stack) {
++        if self.streaming && self.stream_codec == Some(CodecKind::LhdcV5) {
++            crate::media::discard_expired(&mut self.media,&self.stats,Instant::now());
++        }
          if self.streaming && !self.can_send_requested && self.a2dp_cid != 0 && !self.media.is_empty() {
 +            if !self.media_due(stack) { return; }
              self.can_send_requested = true;
@@ -267,7 +268,7 @@ index f859489..3087ff6 100644
 +        if self.stream_codec != Some(CodecKind::LhdcV5) { return true; }
 +        let Ok(packet) = self.media.peek() else { return false; };
 +        let now=Instant::now();
-+        let due=self.send_clock.due(packet,now);
++        let due=crate::send_clock::due(packet,now);
 +        if due>now {
 +            // Do not reschedule the same deadline on every USB wake.
 +            if self.media_timer_due != Some(due) {
@@ -285,6 +286,9 @@ index f859489..3087ff6 100644
 +
      fn can_send_now(&mut self, stack: &Stack) {
          self.can_send_requested = false;
++        if self.streaming && self.stream_codec == Some(CodecKind::LhdcV5) {
++            crate::media::discard_expired(&mut self.media,&self.stats,Instant::now());
++        }
 +        if !self.streaming || !self.media_due(stack) { return; }
          if let Ok(packet) = self.media.pop() {
 +            if let Some(at) = packet.queued_at {
@@ -298,12 +302,11 @@ index f859489..3087ff6 100644
              self.stats.queue_depth.store(depth, Ordering::Relaxed);
              // Remote L2CAP MTU minus the RTP header; aptX / aptX LL go
              // without one
-@@ -494,6 +544,12 @@ impl HostApp {
+@@ -494,6 +547,11 @@ impl HostApp {
                      stack.a2dp_send_media_packet(self.a2dp_cid, self.local_seid, payload)
                  };
                  if status == ERROR_CODE_SUCCESS {
 +                    let now = Instant::now();
-+                    self.send_clock.sent(&packet,now);
 +                    if let Some(previous) = self.last_media_sent {
 +                        self.stats.record_send_gap(now.duration_since(previous).as_micros().min(u32::MAX as u128) as u32);
 +                    }
@@ -311,7 +314,7 @@ index f859489..3087ff6 100644
                      self.stats.packets_sent.fetch_add(1, Ordering::Relaxed);
                      let bytes = payload.len() + if packet.rtp { RTP_HEADER_SIZE } else { 0 };
                      self.stats.bytes_sent.fetch_add(bytes as u64, Ordering::Relaxed);
-@@ -1099,10 +1155,15 @@ impl HostApp {
+@@ -1099,10 +1157,15 @@ impl HostApp {
                  self.send_pending_volume(stack);
              }
              Some(AVRCP_SUBEVENT_SET_ABSOLUTE_VOLUME_RESPONSE) => {
@@ -328,7 +331,7 @@ index f859489..3087ff6 100644
                  self.send_pending_volume(stack);
              }
              Some(AVRCP_SUBEVENT_OPERATION) => {
-@@ -1245,28 +1306,42 @@ impl HostApp {
+@@ -1245,28 +1308,42 @@ impl HostApp {
              }
          }
  
@@ -377,7 +380,7 @@ index f859489..3087ff6 100644
          match opcode {
              HCI_OPCODE_SET_AFH_HOST_CHANNEL_CLASSIFICATION => {
                  if rp.first().is_some_and(|&s| s != ERROR_CODE_SUCCESS) {
-@@ -1351,6 +1426,7 @@ impl App for HostApp {
+@@ -1351,6 +1428,7 @@ impl App for HostApp {
  
      fn on_timer(&mut self, stack: &Stack, id: u32) {
          match id {
@@ -385,7 +388,7 @@ index f859489..3087ff6 100644
              TIMER_AFH => {
                  self.afh_tick(stack);
                  stack.timer_start(TIMER_AFH, AFH_TICK_MS);
-@@ -1475,6 +1551,17 @@ fn find_bcm_hcd(dir: &Path, adapters: &[(u16, u16)]) -> Option<PathBuf> {
+@@ -1475,6 +1553,17 @@ fn find_bcm_hcd(dir: &Path, adapters: &[(u16, u16)]) -> Option<PathBuf> {
  #[cfg(test)]
  mod tests {
      use super::ensure_alias;
@@ -404,7 +407,7 @@ index f859489..3087ff6 100644
      #[test]
      fn firmware_alias_follows_the_bin() {
 diff --git a/app/src/crates/bt-host/src/lib.rs b/app/src/crates/bt-host/src/lib.rs
-index 3ec7cd3..b995623 100644
+index 3ec7cd3..d64e293 100644
 --- a/app/src/crates/bt-host/src/lib.rs
 +++ b/app/src/crates/bt-host/src/lib.rs
 @@ -17,6 +17,7 @@ pub mod events;
@@ -415,8 +418,30 @@ index 3ec7cd3..b995623 100644
  mod shared;
  pub mod stats;
  
+@@ -42,6 +43,13 @@ pub use media::{MediaPacket, MediaSink};
+ use shared::{Shared, Wait};
+ pub use stats::{LinkRadio, LinkStats};
+ 
++/// Keep controller event handling at the same multimedia scheduling class
++/// as the producer/USB writer. The platform guard is created and dropped on
++/// the Bluetooth thread, without adding a Win32 dependency here.
++pub type ThreadPriorityHook = fn() -> Box<dyn std::any::Any>;
++static PRIORITY_HOOK: std::sync::OnceLock<ThreadPriorityHook> = std::sync::OnceLock::new();
++pub fn set_thread_priority_hook(hook: ThreadPriorityHook) { let _=PRIORITY_HOOK.set(hook); }
++
+ const INIT_TIMEOUT: Duration = Duration::from_secs(30);
+ /// No HCI event at all this long after power on: the controller does not
+ /// answer HCI Reset (BTstack resends it every 200 ms)
+@@ -331,6 +339,7 @@ impl BtHost {
+             std::thread::Builder::new()
+                 .name("bt-runloop".into())
+                 .spawn(move || {
++                    let _priority=PRIORITY_HOOK.get().map(|hook| hook());
+                     let HostConfig {
+                         transport,
+                         link_key_dir,
 diff --git a/app/src/crates/bt-host/src/media.rs b/app/src/crates/bt-host/src/media.rs
-index 52ad9cc..341fc76 100644
+index 52ad9cc..cdefda3 100644
 --- a/app/src/crates/bt-host/src/media.rs
 +++ b/app/src/crates/bt-host/src/media.rs
 @@ -4,6 +4,8 @@
@@ -428,7 +453,33 @@ index 52ad9cc..341fc76 100644
  
  use btstack_sys::Remote;
  
-@@ -33,11 +35,18 @@ pub struct MediaPacket {
+@@ -21,6 +23,25 @@ pub const MEDIA_PAYLOAD_LIMIT_MIN: u16 = 679;
+ pub const MEDIA_PAYLOAD_LIMIT_MAX: u16 = 1679;
+ pub const MEDIA_PAYLOAD_LIMIT_DEFAULT: u16 = 1023;
+ 
++/// Consumer-side latency recovery for paced LHDC streams. Discard the old
++/// head, not fresh input, and count every skipped packet as a local loss.
++pub(crate) fn discard_expired(consumer: &mut rtrb::Consumer<MediaPacket>, stats: &LinkStats, now: Instant) -> u32 {
++    let mut discarded=0;
++    while consumer.peek().is_ok_and(|p| crate::send_clock::expired(p,now)) {
++        if consumer.pop().is_err() {break;}
++        discarded+=1;
++    }
++    if discarded>0 {
++        stats.queue_drops.fetch_add(u64::from(discarded),Ordering::Relaxed);
++        stats.queue_depth.store(consumer.slots() as u32,Ordering::Relaxed);
++        if consumer.is_empty() {
++            stats.queue_audio_us.store(0,Ordering::Relaxed);
++            stats.queue_wait_us.store(0,Ordering::Relaxed);
++        }
++    }
++    discarded
++}
++
+ pub fn clamp_media_payload_limit(limit: u32) -> u16 {
+     limit.clamp(MEDIA_PAYLOAD_LIMIT_MIN as u32, MEDIA_PAYLOAD_LIMIT_MAX as u32) as u16
+ }
+@@ -33,11 +54,18 @@ pub struct MediaPacket {
      pub len: u16,
      pub timestamp: u32,
      pub rtp: bool,
@@ -448,7 +499,7 @@ index 52ad9cc..341fc76 100644
      }
  }
  
-@@ -55,15 +64,25 @@ pub(crate) type StreamingFlag = Arc<AtomicBool>;
+@@ -55,15 +83,25 @@ pub(crate) type StreamingFlag = Arc<AtomicBool>;
  pub(crate) fn queue(stats: Arc<LinkStats>, remote: Remote) -> (MediaSink, rtrb::Consumer<MediaPacket>, StreamingFlag) {
      let (producer, consumer) = rtrb::RingBuffer::new(MEDIA_QUEUE_PACKETS);
      let streaming = StreamingFlag::default();
@@ -475,7 +526,7 @@ index 52ad9cc..341fc76 100644
  }
  
  impl MediaSink {
-@@ -77,8 +96,14 @@ impl MediaSink {
+@@ -77,8 +115,14 @@ impl MediaSink {
          if !self.is_streaming() {
              return false;
          }
@@ -491,7 +542,7 @@ index 52ad9cc..341fc76 100644
                  let depth = MEDIA_QUEUE_PACKETS - self.producer.slots();
                  self.stats.queue_depth.store(depth as u32, Ordering::Relaxed);
                  self.remote.wake();
-@@ -101,6 +126,23 @@ impl MediaSink {
+@@ -101,6 +145,23 @@ impl MediaSink {
          (MEDIA_QUEUE_PACKETS - self.producer.slots()) as u32
      }
  
@@ -515,10 +566,31 @@ index 52ad9cc..341fc76 100644
      pub fn stats(&self) -> &Arc<LinkStats> {
          &self.stats
      }
-@@ -117,6 +159,26 @@ pub fn detached_queue(stats: Arc<LinkStats>) -> (MediaSink, rtrb::Consumer<Media
+@@ -117,6 +178,47 @@ pub fn detached_queue(stats: Arc<LinkStats>) -> (MediaSink, rtrb::Consumer<Media
  mod tests {
      use super::*;
  
++    #[test]
++    fn a_full_stale_ring_keeps_recent_audio_and_counts_recovery_losses() {
++        let stats=Arc::new(LinkStats::default());
++        let (mut sink,mut consumer,streaming)=detached_queue(stats.clone());
++        streaming.store(true,Ordering::Release);
++        let t=Instant::now();
++        for n in 0..MEDIA_QUEUE_PACKETS {
++            assert!(sink.send(&MediaPacket {audio_us:5442,
++                timestamp:n as u32*240,send_at:Some(t+std::time::Duration::from_micros(n as u64*5442)),..Default::default()}));
++        }
++        let now=t+std::time::Duration::from_millis(400);
++        let discarded=discard_expired(&mut consumer,&stats,now);
++        assert!(discarded>40);
++        assert_eq!(stats.queue_drops.load(Ordering::Relaxed),u64::from(discarded));
++        assert!(consumer.slots()<24);
++        assert!(!crate::send_clock::expired(consumer.peek().unwrap(),now));
++        assert_eq!(sink.feedback().1,consumer.slots() as u32*5442);
++        assert!(sink.send(&MediaPacket {audio_us:5442,send_at:Some(now),..Default::default()}));
++        assert_eq!(discard_expired(&mut consumer,&stats,now),0);
++    }
++
 +    #[test]
 +    fn congestion_uses_audio_duration_and_live_head_after_ring_wrap() {
 +        let stats=Arc::new(LinkStats::default());
@@ -1356,14 +1428,19 @@ index 3177824..655ea4e 100644
              map: c.map,
              usable: c.usable as u32,
 diff --git a/app/src/crates/core/src/service.rs b/app/src/crates/core/src/service.rs
-index 98a2179..ee316e0 100644
+index 98a2179..d650cbf 100644
 --- a/app/src/crates/core/src/service.rs
 +++ b/app/src/crates/core/src/service.rs
-@@ -575,6 +575,7 @@ impl Service {
+@@ -575,6 +575,12 @@ impl Service {
          pipeline::set_thread_priority_hook(|| {
              Box::new(win_sys::mmcss::MmcssGuard::register(win_sys::mmcss::MmcssTask::ProAudio).ok())
          });
 +        pipeline::set_packet_wait_hook(win_sys::mmcss::media_wait);
++        bt_host::set_thread_priority_hook(|| {
++            let guard=win_sys::mmcss::MmcssGuard::register(win_sys::mmcss::MmcssTask::ProAudio);
++            if let Err(error)=&guard {tracing::warn!("Bluetooth run-loop MMCSS registration failed: {error}");}
++            Box::new(guard.ok())
++        });
          hci_transport::set_acl_out_priority_hook(|| {
              Box::new(win_sys::mmcss::MmcssGuard::register(win_sys::mmcss::MmcssTask::ProAudio).ok())
          });
@@ -1812,43 +1889,41 @@ diff --git a/app/src/crates/bt-host/src/send_clock.rs b/app/src/crates/bt-host/s
 new file mode 100644
 --- /dev/null
 +++ b/app/src/crates/bt-host/src/send_clock.rs
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,98 @@
 +//! Nonblocking L2CAP gate sharing the producer's media-clock deadline.
-+//! A second RTP clock here used to turn one stall into permanent queue delay.
++//! Modified for LHDC Switch 2.4.3: do not append another per-packet wait
++//! after USB/controller readiness delays. The producer already paces audio.
 +use std::time::{Duration,Instant};
 +use crate::media::MediaPacket;
-+#[derive(Default)]
-+pub(crate) struct SendClock {
-+    last_sent: Option<(Instant,u32)>,
++
++pub(crate) const MAX_SEND_LATENESS: Duration = Duration::from_millis(120);
++
++pub(crate) fn due(packet: &MediaPacket, now: Instant) -> Instant {
++    packet.send_at.unwrap_or(now)
 +}
-+impl SendClock {
-+    pub fn due(&mut self, packet: &MediaPacket, now: Instant) -> Instant {
-+        let mut due=packet.send_at.unwrap_or(now);
-+        if let Some((sent,audio_us))=self.last_sent {
-+            // Old packets may catch up at up to 2x media speed (up to 4x
-+            // for 20 ms LHDC packets), without an instantaneous bulk burst.
-+            due=due.max(sent+Duration::from_micros(u64::from(audio_us/2).min(5000)));
-+        }
-+        due
-+    }
-+    pub fn sent(&mut self, packet: &MediaPacket, now: Instant) { self.last_sent=Some((now,packet.audio_us)); }
++
++/// Preserve a short recoverable backlog, but never keep sending half-second
++/// old audio while the full ring rejects fresh audio. Normal HCI credits still
++/// bound submission; this does not override controller flow control.
++pub(crate) fn expired(packet: &MediaPacket, now: Instant) -> bool {
++    packet.send_at.is_some_and(|at| now.saturating_duration_since(at) > MAX_SEND_LATENESS)
 +}
 +#[cfg(test)]
 +mod tests {
 +    use super::*;
 +    #[test]
-+    fn repeated_wakes_keep_the_same_deadline() {
-+        let t=Instant::now(); let mut c=SendClock::default();
++    fn controller_wait_does_not_shift_future_media_deadlines() {
++        let t=Instant::now();
 +        let mut p=MediaPacket {sample_rate:48000,audio_us:5000,send_at:Some(t),..Default::default()};
-+        assert_eq!(c.due(&p,t),t);c.sent(&p,t);
++        assert_eq!(due(&p,t),t);
 +        p.timestamp=240;p.send_at=Some(t+Duration::from_millis(5));
-+        assert_eq!(c.due(&p,t),t+Duration::from_millis(5));
-+        assert_eq!(c.due(&p,t),t+Duration::from_millis(5));
++        assert_eq!(due(&p,t),t+Duration::from_millis(5));
++        assert_eq!(due(&p,t+Duration::from_millis(25)),t+Duration::from_millis(5));
 +    }
 +    #[test]
 +    fn recovered_stall_drains_without_losing_spacing_or_accumulating_delay() {
-+        for audio_us in [5000,10000,20000] {
-+            let t=Instant::now();let mut c=SendClock::default();
++        for audio_us in [5000,5442,10000,20000] {
++            let t=Instant::now();
 +            let interval=Duration::from_micros(audio_us);
 +            let mut actual=t;
 +            let mut maximum_delay=Duration::ZERO;
@@ -1856,16 +1931,63 @@ new file mode 100644
 +                let scheduled=t+interval*n;
 +                let p=MediaPacket {audio_us:audio_us as u32,send_at:Some(scheduled),..Default::default()};
 +                if n==10 {actual=scheduled+Duration::from_millis(80);}
-+                actual=actual.max(c.due(&p,actual));
++                actual=actual.max(due(&p,actual));
 +                maximum_delay=maximum_delay.max(actual.saturating_duration_since(scheduled));
-+                c.sent(&p,actual);
-+                if n>100 {assert_eq!(actual,scheduled,"{audio_us} us packets must recover after one stall");}
++                // Model controller/USB readiness, rather than pretending
++                // every can-send callback is instantaneous.
++                actual+=Duration::from_millis(3);
++                if n>100 {assert_eq!(actual,scheduled+Duration::from_millis(3),"{audio_us} us packets must recover after one stall");}
 +            }
 +            assert_eq!(maximum_delay,Duration::from_millis(80));
 +        }
 +    }
++    #[test]
++    fn all_packet_durations_avoid_accumulating_timer_and_controller_delays() {
++        for rate in [44100,48000,96000,192000] {
++          for frames in 1..=4 {
++            let samples=frames*if rate<=48000 {240} else {rate/200};
++            // Ready callbacks consume 80% of the packet interval: enough
++            // transport capacity for this stream, at both low/high bitrates.
++            let readiness=Duration::from_nanos(u64::from(samples)*1_000_000_000/u64::from(rate)*4/5);
++            let t=Instant::now();
++            let mut actual=t;
++            let mut old_actual=t;
++            let mut old_sent=None;
++            let mut max_lag=Duration::ZERO;
++            for n in 0..2000u64 {
++                let scheduled=t+Duration::from_nanos(n*u64::from(samples)*1_000_000_000/u64::from(rate));
++                let packet=MediaPacket {audio_us:(u64::from(samples)*1_000_000/u64::from(rate)) as u32,
++                    send_at:Some(scheduled),sample_rate:rate,..Default::default()};
++                // A millisecond timer may add another tick when an
++                // artificial post-send wait is requested.
++                let deadline=due(&packet,actual);
++                if deadline>actual {actual=deadline;}
++                actual+=readiness;
++                max_lag=max_lag.max(actual.duration_since(scheduled));
++                let mut old_due=scheduled;
++                if let Some(sent)=old_sent {
++                    old_due=old_due.max(sent+Duration::from_micros(u64::from(packet.audio_us/2).min(5000)));
++                }
++                if old_due>old_actual {old_actual=old_due+Duration::from_millis(1);}
++                old_actual+=readiness;
++                old_sent=Some(old_actual);
++            }
++            assert_eq!(max_lag,readiness,"{rate} Hz, {frames}-frame packets");
++            assert!(old_actual.duration_since(actual)>Duration::from_secs(1),"the old extra gate must reproduce growing backlog");
++          }
++        }
++    }
++    #[test]
++    fn lateness_budget_preserves_small_stalls_and_expires_only_stale_packets() {
++        let t=Instant::now();
++        let packet=MediaPacket {send_at:Some(t),..Default::default()};
++        assert!(!expired(&packet,t-Duration::from_millis(20)));
++        assert!(!expired(&packet,t+Duration::from_millis(80)));
++        assert!(!expired(&packet,t+MAX_SEND_LATENESS));
++        assert!(expired(&packet,t+MAX_SEND_LATENESS+Duration::from_micros(1)));
++        assert!(!expired(&MediaPacket::default(),t+Duration::from_secs(1)));
++    }
 +}
-\ No newline at end of file
 diff --git a/app/src/crates/btstack-sys/csrc/media_run_loop_windows.c b/app/src/crates/btstack-sys/csrc/media_run_loop_windows.c
 new file mode 100644
 --- /dev/null
@@ -2141,7 +2263,7 @@ diff --git a/app/src/crates/codec/src/lhdc_abr.rs b/app/src/crates/codec/src/lhd
 new file mode 100644
 --- /dev/null
 +++ b/app/src/crates/codec/src/lhdc_abr.rs
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,198 @@
 +//! LHDC Switch adaptive policy. Time based, independent of packet size/rate.
 +use std::time::Duration;
 +
@@ -2151,10 +2273,11 @@ new file mode 100644
 +    pub start: usize,
 +    clear_since: Duration,
 +    congested_since: Option<Duration>,
++    mild_since: Option<Duration>,
 +    next_probe: Duration,
 +    probe_delay: Duration,
 +    /// Failed probes pause only that stage, never lower the session ceiling.
-+    blocked_probe: Option<(usize, Duration)>,
++    blocked_probe: Option<(usize, Duration, u8)>,
 +    next_reduction: Duration,
 +    last_raise: Option<(usize, Duration)>,
 +}
@@ -2168,22 +2291,36 @@ new file mode 100644
 +        let table = if table.is_empty() { vec![rates[min]] } else { table };
 +        let start = table.iter().rposition(|r| *r <= 400).unwrap_or(0);
 +        Self { table, index: start, start, clear_since: Duration::ZERO,
-+            congested_since: None, next_probe: Duration::from_secs(5), probe_delay: Duration::from_secs(15),
++            congested_since: None, mild_since: None, next_probe: Duration::from_secs(5), probe_delay: Duration::from_secs(15),
 +            blocked_probe: None, next_reduction: Duration::ZERO, last_raise: None }
 +    }
 +
 +    // A few packets are normal with 10 ms capture bursts. Sustained backlog
 +    // reduces rate before the 64-packet ring fills; severe backlog acts at once.
 +    pub fn target(&mut self, queue: u32, now: Duration) -> Option<usize> {
++        // An actually successful retry clears that stage's failure history.
++        if self.blocked_probe.is_some_and(|(stage,_,_)| self.index>=stage)
++            && self.last_raise.is_some_and(|(_,at)| now.saturating_sub(at)>=Duration::from_secs(30)) {
++            self.blocked_probe=None;
++        }
 +        if queue >= 4 {
-+            self.clear_since = now;
-+            if now < Duration::from_secs(2) && queue < 24 { return None; }
++            self.mild_since=None;
 +            let since = *self.congested_since.get_or_insert(now);
++            let sustained=queue>=24 || now.saturating_sub(since)>=Duration::from_millis(60);
++            // A short scheduling spike must not restart a five-second clean
++            // window forever. Sustained congestion still resets it and acts.
++            if sustained {self.clear_since=now;}
++            if now < Duration::from_secs(2) && queue < 24 { return None; }
 +            if self.index > 0 && now >= self.next_reduction
-+                && (queue >= 24 || now.saturating_sub(since) >= Duration::from_millis(60)) {
++                && sustained {
 +                if let Some((raised, at)) = self.last_raise.take() {
 +                    if raised == self.index && now.saturating_sub(at) <= Duration::from_secs(6) {
-+                        self.blocked_probe = Some((raised,now + Duration::from_secs(60)));
++                        let failures=self.blocked_probe.filter(|(stage,_,_)| *stage==raised)
++                            .map_or(1,|(_,_,count)| count.saturating_add(1).min(3));
++                        let retry=Duration::from_secs(15u64 << (failures-1));
++                        self.blocked_probe = Some((raised,now + retry,failures));
++                        tracing::info!("LHDC ABR: {} kbps probe failed; retry in {} s (failure {})",
++                            self.table[raised],retry.as_secs(),failures);
 +                    }
 +                }
 +                self.congested_since = Some(now);
@@ -2197,10 +2334,15 @@ new file mode 100644
 +            }
 +        } else {
 +            self.congested_since = None;
-+            if queue > 1 { self.clear_since = now; }
-+            let hold = if self.table.get(self.index + 1).is_some_and(|r| *r >= 900) { 20 }
++            if queue > 1 {
++                let since=*self.mild_since.get_or_insert(now);
++                if now.saturating_sub(since)>=Duration::from_millis(250) {self.clear_since=now;}
++            } else {self.mild_since=None;}
++            // The old 20 s high-rate hold protected a 500 -> 900 jump. With
++            // 700/750/800 stages, a small step does not need the same penalty.
++            let hold = if self.table.get(self.index + 1).is_some_and(|r| *r>=900 && *r>self.table[self.index]*4/3) { 20 }
 +                else if self.index < self.start {3} else {5};
-+            let probe_blocked=self.blocked_probe.is_some_and(|(stage,until)| self.index+1>=stage && now<until);
++            let probe_blocked=self.blocked_probe.is_some_and(|(stage,until,_)| self.index+1>=stage && now<until);
 +            if queue <= 1 && self.index + 1 < self.table.len() && !probe_blocked && now >= self.next_probe
 +                && now.saturating_sub(self.clear_since) >= Duration::from_secs(hold) {
 +                self.clear_since = now;
@@ -2258,10 +2400,47 @@ new file mode 100644
 +        for t in [5,25] { let i=a.target(0,Duration::from_secs(t)).unwrap(); a.index=i; }
 +        assert_eq!(a.table[a.index],900);
 +        let i=a.target(24,Duration::from_secs(26)).unwrap(); a.index=i;
-+        for t in 27..86 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
++        for t in 27..46 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
 +        assert_eq!(a.table[a.index],500);
-+        for t in 86..180 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
++        for t in 46..100 { if let Some(i)=a.target(0,Duration::from_secs(t)) { a.index=i; } }
 +        assert_eq!(a.table[a.index],1000);
++    }
++    #[test]
++    fn brief_periodic_jitter_does_not_pin_500_or_480_forever() {
++        for middle in [480,500] {
++            let rates=[160,192,256,320,400,middle,700,750,800,900,1000];
++            let mut a=Abr::new(&rates,0,10,900);a.index=5;
++            for tick in 0..3500 {
++                let ms=tick*10;
++                let pressure=match ms%1000 {0..20=>2,20..40=>4,_=>0};
++                if let Some(i)=a.target(pressure,Duration::from_millis(ms)) {a.index=i;}
++            }
++            assert_eq!(a.table[a.index],900,"periodic 40 ms host jitter at {middle}");
++        }
++    }
++    #[test]
++    fn sustained_mild_backlog_still_blocks_upward_probes() {
++        let mut a=Abr::new(&R,0,8,900);
++        a.index=a.table.iter().position(|r| *r==500).unwrap();
++        for ms in (0..10_000).step_by(10) {assert!(a.target(2,Duration::from_millis(ms)).is_none());}
++        for ms in (10_000..14_990).step_by(10) {assert!(a.target(0,Duration::from_millis(ms)).is_none());}
++        assert!(a.target(0,Duration::from_secs(30)).is_some());
++    }
++    #[test]
++    fn failed_stage_backoff_grows_15_30_60_and_success_clears_it() {
++        let rates=[160,192,256,320,400,500,700,750,800,900];
++        let mut a=Abr::new(&rates,0,9,900);
++        for (attempt,t) in [(1u8,10u64),(2,40),(3,90),(3,180)] {
++            a.index=6;a.last_raise=Some((6,Duration::from_secs(t)));
++            a.next_reduction=Duration::ZERO;
++            let i=a.target(24,Duration::from_secs(t+1)).unwrap();a.index=i;
++            let (_,until,count)=a.blocked_probe.unwrap();
++            assert_eq!(count,attempt);
++            assert_eq!(until,Duration::from_secs(t+1+(15u64<<(attempt-1))));
++        }
++        a.index=6;a.last_raise=Some((6,Duration::from_secs(250)));
++        a.target(0,Duration::from_secs(281));
++        assert!(a.blocked_probe.is_none());
 +    }
 +    #[test]
 +    fn reductions_wait_for_the_previous_change_and_floor_recovers() {

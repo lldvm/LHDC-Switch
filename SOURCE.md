@@ -1,6 +1,6 @@
 # 源码与版本清单
 
-本项目：<https://github.com/lldvm/LHDC-Switch>，首次公开版本 `v2.4.2`。所有本项目控制器源码、构建 / 配置脚本、许可证与修改后的引擎源码均在此仓库；完整子模块源码另随同一 Release 提供，免费获取。
+本项目：<https://github.com/lldvm/LHDC-Switch>，当前版本 `v2.4.3`（首次公开版本为 `v2.4.2`）。所有本项目控制器源码、构建 / 配置脚本、许可证与修改后的引擎源码均在此仓库；完整子模块源码另随同一 Release 提供，免费获取。
 
 ## 引擎与编码器
 
@@ -9,7 +9,7 @@
 - `engine-source/adaptive.patch`：从上述上游提交生成的历史完整改动补丁（包含新源文件与 Rust 编码器 overlay），供审阅和重建对照。仓库中的已修改源码为构建入口，无需重复应用。公开快照另外添加了逐文件修改声明，原补丁未包含这些仅注释的声明。
 - AOSP Rust：<https://github.com/DBeidachazi/liblhdcv5/tree/0df76b08196dc26e460404189279b17a7101af74/aosp>；mirror 标明 Android tag `android-17.0.0_r1`、`system/audio/codecs/lhdcv5`、`c77db469de80f86660bc053bec4dee0c5d4b947c`。来源详情见 `reference/extern/aosp-lhdcv5/SOURCE.txt`。
 - 上游驱动辅助程序来自原版 v2.0.1 便携包；对应源码为 `reference/app/src/driver/`。SHA256：`f57f4b24613ad0ad07168fb01d2243dbd7a1a1fc6c06ca94165be987cb157b7e`。
-- 当前发布的 Rust 核心 SHA256：`aa4f62a6c5c7299c7012066f72f9dfc598c799e1449b112014ac3703447add33`。编译器路径、版本和环境不同可能产生不同二进制；不声称可逐字节复现。
+- 当前发布的 Rust 核心 SHA256：`887fa0b71eeb2a9d02a6e0e56ccb4572c40f1747fd1295ad90a731814083a896`。编译器路径、版本和环境不同可能产生不同二进制；不声称可逐字节复现。
 
 ## 锁定 C 子模块
 

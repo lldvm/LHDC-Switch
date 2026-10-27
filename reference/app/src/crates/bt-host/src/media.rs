@@ -24,6 +24,25 @@ pub const MEDIA_PAYLOAD_LIMIT_MIN: u16 = 679;
 pub const MEDIA_PAYLOAD_LIMIT_MAX: u16 = 1679;
 pub const MEDIA_PAYLOAD_LIMIT_DEFAULT: u16 = 1023;
 
+/// Consumer-side latency recovery for paced LHDC streams. Discard the old
+/// head, not fresh input, and count every skipped packet as a local loss.
+pub(crate) fn discard_expired(consumer: &mut rtrb::Consumer<MediaPacket>, stats: &LinkStats, now: Instant) -> u32 {
+    let mut discarded=0;
+    while consumer.peek().is_ok_and(|p| crate::send_clock::expired(p,now)) {
+        if consumer.pop().is_err() {break;}
+        discarded+=1;
+    }
+    if discarded>0 {
+        stats.queue_drops.fetch_add(u64::from(discarded),Ordering::Relaxed);
+        stats.queue_depth.store(consumer.slots() as u32,Ordering::Relaxed);
+        if consumer.is_empty() {
+            stats.queue_audio_us.store(0,Ordering::Relaxed);
+            stats.queue_wait_us.store(0,Ordering::Relaxed);
+        }
+    }
+    discarded
+}
+
 pub fn clamp_media_payload_limit(limit: u32) -> u16 {
     limit.clamp(MEDIA_PAYLOAD_LIMIT_MIN as u32, MEDIA_PAYLOAD_LIMIT_MAX as u32) as u16
 }
@@ -159,6 +178,27 @@ pub fn detached_queue(stats: Arc<LinkStats>) -> (MediaSink, rtrb::Consumer<Media
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_full_stale_ring_keeps_recent_audio_and_counts_recovery_losses() {
+        let stats=Arc::new(LinkStats::default());
+        let (mut sink,mut consumer,streaming)=detached_queue(stats.clone());
+        streaming.store(true,Ordering::Release);
+        let t=Instant::now();
+        for n in 0..MEDIA_QUEUE_PACKETS {
+            assert!(sink.send(&MediaPacket {audio_us:5442,
+                timestamp:n as u32*240,send_at:Some(t+std::time::Duration::from_micros(n as u64*5442)),..Default::default()}));
+        }
+        let now=t+std::time::Duration::from_millis(400);
+        let discarded=discard_expired(&mut consumer,&stats,now);
+        assert!(discarded>40);
+        assert_eq!(stats.queue_drops.load(Ordering::Relaxed),u64::from(discarded));
+        assert!(consumer.slots()<24);
+        assert!(!crate::send_clock::expired(consumer.peek().unwrap(),now));
+        assert_eq!(sink.feedback().1,consumer.slots() as u32*5442);
+        assert!(sink.send(&MediaPacket {audio_us:5442,send_at:Some(now),..Default::default()}));
+        assert_eq!(discard_expired(&mut consumer,&stats,now),0);
+    }
 
     #[test]
     fn congestion_uses_audio_duration_and_live_head_after_ring_wrap() {

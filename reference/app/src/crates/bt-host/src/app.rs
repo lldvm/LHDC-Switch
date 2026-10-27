@@ -126,7 +126,6 @@ pub(crate) struct HostApp {
     radio_read_next: u8,
     power_read_max: bool,
     last_media_sent: Option<Instant>,
-    send_clock: crate::send_clock::SendClock,
     media_timer_due: Option<Instant>,
 }
 
@@ -183,7 +182,6 @@ impl HostApp {
             radio_read_next: 0,
             power_read_max: false,
             last_media_sent: None,
-            send_clock: Default::default(),
             media_timer_due: None,
         }
     }
@@ -474,7 +472,6 @@ impl HostApp {
     fn set_streaming(&mut self, on: bool) {
         if on != self.streaming {
             self.last_media_sent = None;
-            self.send_clock = Default::default();
             self.media_timer_due = None;
         }
         if on && !self.streaming {
@@ -492,6 +489,9 @@ impl HostApp {
     }
 
     fn kick_media(&mut self, stack: &Stack) {
+        if self.streaming && self.stream_codec == Some(CodecKind::LhdcV5) {
+            crate::media::discard_expired(&mut self.media,&self.stats,Instant::now());
+        }
         if self.streaming && !self.can_send_requested && self.a2dp_cid != 0 && !self.media.is_empty() {
             if !self.media_due(stack) { return; }
             self.can_send_requested = true;
@@ -503,7 +503,7 @@ impl HostApp {
         if self.stream_codec != Some(CodecKind::LhdcV5) { return true; }
         let Ok(packet) = self.media.peek() else { return false; };
         let now=Instant::now();
-        let due=self.send_clock.due(packet,now);
+        let due=crate::send_clock::due(packet,now);
         if due>now {
             // Do not reschedule the same deadline on every USB wake.
             if self.media_timer_due != Some(due) {
@@ -521,6 +521,9 @@ impl HostApp {
 
     fn can_send_now(&mut self, stack: &Stack) {
         self.can_send_requested = false;
+        if self.streaming && self.stream_codec == Some(CodecKind::LhdcV5) {
+            crate::media::discard_expired(&mut self.media,&self.stats,Instant::now());
+        }
         if !self.streaming || !self.media_due(stack) { return; }
         if let Ok(packet) = self.media.pop() {
             if let Some(at) = packet.queued_at {
@@ -546,7 +549,6 @@ impl HostApp {
                 };
                 if status == ERROR_CODE_SUCCESS {
                     let now = Instant::now();
-                    self.send_clock.sent(&packet,now);
                     if let Some(previous) = self.last_media_sent {
                         self.stats.record_send_gap(now.duration_since(previous).as_micros().min(u32::MAX as u128) as u32);
                     }

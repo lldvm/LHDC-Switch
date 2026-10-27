@@ -44,6 +44,13 @@ pub use media::{MediaPacket, MediaSink};
 use shared::{Shared, Wait};
 pub use stats::{LinkRadio, LinkStats};
 
+/// Keep controller event handling at the same multimedia scheduling class
+/// as the producer/USB writer. The platform guard is created and dropped on
+/// the Bluetooth thread, without adding a Win32 dependency here.
+pub type ThreadPriorityHook = fn() -> Box<dyn std::any::Any>;
+static PRIORITY_HOOK: std::sync::OnceLock<ThreadPriorityHook> = std::sync::OnceLock::new();
+pub fn set_thread_priority_hook(hook: ThreadPriorityHook) { let _=PRIORITY_HOOK.set(hook); }
+
 const INIT_TIMEOUT: Duration = Duration::from_secs(30);
 /// No HCI event at all this long after power on: the controller does not
 /// answer HCI Reset (BTstack resends it every 200 ms)
@@ -333,6 +340,7 @@ impl BtHost {
             std::thread::Builder::new()
                 .name("bt-runloop".into())
                 .spawn(move || {
+                    let _priority=PRIORITY_HOOK.get().map(|hook| hook());
                     let HostConfig {
                         transport,
                         link_key_dir,
